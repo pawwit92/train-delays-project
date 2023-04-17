@@ -39,14 +39,14 @@ select distinct
 	d.carrier 
 	, d.delay 
 from delays d
-where d.delay is null
+where d.carrier ilike '%tr%'
 order by 2 desc
 
 -- Klasyfikacja opóźnień z podziałem na stacje i przewoźnika
 select
 	d.carrier
 	, sum(case 
-		when d.delay = 0 then 1
+		when d.delay is null then 1
 		else 0
 	end) "delay = 0 "
 	, sum(case 
@@ -86,32 +86,23 @@ from delays d
 --where d.carrier ilike 'arr%'
 order by 1
 
-
--- Zmiana wartości delay na 0 w przypadku gdy dla danego połączenia min = max = avg delay. 
 update delays 
 set delay = null
-where "connection" in (select 
-	d2."connection" 
-from delays d2 
-join (select 
-	d."connection" value
-	, min(d.delay) min_value
-	, round(avg(d.delay), 0) avg_value
-	, max(d.delay) max_value
-from delays d
-group by 1) q1 on d2."connection" = q1.value
-where q1.avg_value = q1.max_value and q1.avg_value = q1.min_value
-group by 1)
-
-select 
+where d."connection" in (select
 	d."connection"
-	, count(*)
-from delays d 
-where d.delay is null
+from delays d
 group by 1
-order by 1
+having min(d.delay) = max(d.delay))
 
-select 
-count(*)
-from delays d 
-where "connection" = 'Gdańsk Śródmieście - Gdynia Stocznia-Uniwersytet Morski'
+update delays 
+set delay = null
+where (
+		select 
+			case 
+				when min(d.delay) = max(d.delay) and min(d.delay) = avg(d.delay) then 1
+				else 0
+			end
+		from delays d
+		group by d."connection") = 1
+
+
